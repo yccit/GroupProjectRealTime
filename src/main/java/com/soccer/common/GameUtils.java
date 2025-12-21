@@ -1,4 +1,4 @@
-package com.soccergame.common.util;
+package com.soccer.common;
 
 public class GameUtils {
 
