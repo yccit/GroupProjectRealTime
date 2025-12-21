@@ -5,12 +5,38 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="643f8bd0-aaa1-434c-a64f-88970f67e516" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/client/AppLauncher.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/common/Constants.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/common/GameState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/common/InputPacket.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/server/DatabaseManager.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/soccer/server/GameRoom.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/client/ClientMain.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/soccer/client/ClientMain.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/client/SoundManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/soccer/client/SoundManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/client/core/EnvironmentManager.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/client/core/GameState.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/client/ui/GamePanel.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/common/model/GameState.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/common/net/GameConstants.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/common/util/GameUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/soccer/common/GameUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/ServerMain.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/soccer/server/ServerMain.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/core/ServerCore.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/database/DatabaseManager.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/database/DatabaseTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/manager/ClientHandler.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/manager/ClientManager.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/soccergame/server/manager/GameHandler.java" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings">
+    <execution />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -33,21 +59,41 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Application.AppLauncher.executor": "Run",
     "Application.ClientMain.executor": "Run",
     "Application.Launcher.executor": "Run",
+    "Application.ServerMain.executor": "Run",
+    "Application.com.soccer.client.ClientMain.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/Honor/OneDrive/Documents/GitHub/assignment-3-g5",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "vue.rearranger.settings.migration": "true"
+  },
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "mysql"
+    ]
   }
 }]]></component>
-  <component name="RunManager" selected="Application.ClientMain">
+  <component name="RunManager" selected="Application.AppLauncher">
+    <configuration name="AppLauncher" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.soccer.client.AppLauncher" />
+      <module name="soccer-game" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.soccer.client.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="ClientMain" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="com.soccergame.client.ClientMain.ClientMain" />
       <module name="soccer-game" />
@@ -66,7 +112,33 @@
       <module name="soccer-game" />
       <extension name="coverage">
         <pattern>
-          <option name="PATTERN" value="com.soccergame.client.*" />
+          <option name="PATTERN" value="com.soccer.client.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ServerMain" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.soccer.server.ServerMain" />
+      <module name="soccer-game" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.soccer.server.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="com.soccer.client.ClientMain" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.soccer.client.ClientMain" />
+      <module name="soccer-game" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.soccer.client.*" />
           <option name="ENABLED" value="true" />
         </pattern>
       </extension>
@@ -76,6 +148,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Application.AppLauncher" />
+        <item itemvalue="Application.ServerMain" />
+        <item itemvalue="Application.com.soccer.client.ClientMain" />
         <item itemvalue="Application.Launcher" />
         <item itemvalue="Application.ClientMain" />
       </list>
@@ -97,8 +172,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1766297328963</updated>
-      <workItem from="1766297339086" duration="2243000" />
-      <workItem from="1766321360972" duration="83000" />
+      <workItem from="1766297339086" duration="1606000" />
     </task>
     <servers />
   </component>
