@@ -1,4 +1,4 @@
 package com.soccergame.client;
 
-public class net {
+public class ui {
 }

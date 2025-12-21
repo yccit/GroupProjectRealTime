@@ -1,4 +1,4 @@
 package com.soccergame.client;
 
-public class util {
+public class core {
 }
