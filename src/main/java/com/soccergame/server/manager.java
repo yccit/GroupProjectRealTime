@@ -1,4 +1,4 @@
 package com.soccergame.server;
 
-public class ClientMain {
+public class manager {
 }

@@ -57,7 +57,7 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>com.soccergame.client.ClientMain</mainClass>
+                    <mainClass>com.soccergame.common.ClientMain</mainClass>
                 </configuration>
             </plugin>
         </plugins>

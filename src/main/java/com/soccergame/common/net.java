@@ -1,4 +1,4 @@
 package com.soccergame.common;
 
-public class manager {
+public class net {
 }
