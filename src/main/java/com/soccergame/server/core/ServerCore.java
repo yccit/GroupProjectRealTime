@@ -1,5 +1,8 @@
 package com.soccergame.server.core;
 
+import com.soccergame.server.manager.ClientManager;
+import com.soccergame.server.manager.GameHandler;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
