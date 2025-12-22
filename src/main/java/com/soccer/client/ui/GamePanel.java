@@ -9,13 +9,30 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class GamePanel extends Canvas {
     private GraphicsContext gc;
 
-    // Image assets
+    // --- Image Assets ---
     private Image imgBall;
+
+    // Body Images (Uses your original player files)
     private Image imgPlayerRed;
     private Image imgPlayerBlue;
+
+    // New Modular Parts (Hands & Feet)
+    private Image imgHandRed;
+    private Image imgHandBlue;
+    private Image imgFootRed;
+    private Image imgFootBlue;
+
+    // --- Animation State ---
+    // Used to calculate movement for animation
+    private Map<Integer, Double> lastX = new HashMap<>();
+    private Map<Integer, Double> lastY = new HashMap<>();
+    private long frameCounter = 0; // Timer for animation
 
     public GamePanel() {
         super(Constants.WIDTH, Constants.HEIGHT);
@@ -25,36 +42,44 @@ public class GamePanel extends Canvas {
 
     private void loadImages() {
         try {
-            // Load images from resources/images
+            // 1. Load Original Assets (Body/Head & Ball)
             imgBall = new Image(getClass().getResource("/images/ball.png").toExternalForm());
             imgPlayerRed = new Image(getClass().getResource("/images/player_red.png").toExternalForm());
             imgPlayerBlue = new Image(getClass().getResource("/images/player_blue.png").toExternalForm());
 
-            // Console Message (Now in English)
-            System.out.println("All image assets loaded successfully!");
+            // 2. Load New Modular Assets (Hands & Feet)
+            // Make sure these files exist in src/main/resources/images/
+            imgHandRed = new Image(getClass().getResource("/images/hand_red.png").toExternalForm());
+            imgHandBlue = new Image(getClass().getResource("/images/hand_blue.png").toExternalForm());
+            imgFootRed = new Image(getClass().getResource("/images/foot_red.png").toExternalForm());
+            imgFootBlue = new Image(getClass().getResource("/images/foot_blue.png").toExternalForm());
+
+            System.out.println("All image assets (including modular parts) loaded successfully!");
         } catch (Exception e) {
             System.err.println("!!! Failed to load images !!!");
-            System.err.println("Please ensure filenames are: ball.png, player_red.png, player_blue.png");
-            e.printStackTrace();
+            System.err.println("Please check if hand_red.png, foot_red.png, etc. exist.");
+            // We don't print stack trace here to keep console clean, but you can add it back if needed.
         }
     }
 
     public void render(GameState currentState) {
         if (currentState == null) return;
 
-        // 1. Draw Pitch (Using code to draw stripes, clearer than a dark background image)
+        frameCounter++; // Increment animation timer
+
+        // 1. Draw Pitch
         if ("RAINY".equals(currentState.weather)) {
             drawPitch(Color.web("#1e5128"), Color.web("#143d1d")); // Darker for rain
         } else {
             drawPitch(Color.web("#2ecc71"), Color.web("#27ae60")); // Bright for sunny
         }
 
-        // 2. Draw Players (Using images)
+        // 2. Draw Players (Now using the new Modular Drawer)
         for (GameState.PlayerState p : currentState.players) {
-            drawPlayerSprite(p);
+            drawModularPlayer(p);
         }
 
-        // 3. Draw Ball (Using image)
+        // 3. Draw Ball
         drawBallSprite(currentState.ballX, currentState.ballY);
 
         // 4. Weather Effects
@@ -69,24 +94,83 @@ public class GamePanel extends Canvas {
         }
     }
 
-    // --- Helper Methods ---
-
-    private void drawPlayerSprite(GameState.PlayerState p) {
+    // --- New Modular Player Rendering Method ---
+    private void drawModularPlayer(GameState.PlayerState p) {
         double r = Constants.PLAYER_RADIUS;
-        double size = r * 2.8; // Scale up slightly to fit the collision circle
 
-        // Select image based on team
-        Image sprite = p.team.equals("RED") ? imgPlayerRed : imgPlayerBlue;
+        // Define sizes for parts relative to the player radius
+        double bodySize = r * 2.8;  // Main body size
+        double handSize = bodySize * 0.35; // Hands are smaller
+        double footSize = bodySize * 0.40; // Feet are smaller
 
-        // Draw image (Centered)
-        if (sprite != null) {
-            gc.drawImage(sprite, p.x - size/2, p.y - size/2, size, size);
+        // 1. Detect Movement & Animation
+        boolean isMoving = false;
+        if (lastX.containsKey(p.id)) {
+            // Check if position changed since last frame
+            if (Math.abs(p.x - lastX.get(p.id)) > 0.1 || Math.abs(p.y - lastY.get(p.id)) > 0.1) {
+                isMoving = true;
+            }
+        }
+        // Update history
+        lastX.put(p.id, p.x);
+        lastY.put(p.id, p.y);
+
+        // Calculate swing offset (Simple sine wave animation)
+        // If moving, feet swing back and forth. If not, offset is 0.
+        double swingOffset = isMoving ? Math.sin(frameCounter * 0.2) * 6 : 0;
+
+        // 2. Select Team Assets
+        boolean isRed = p.team.equals("RED");
+        Image bodyImg = isRed ? imgPlayerRed : imgPlayerBlue; // Use original player img as body
+        Image handImg = isRed ? imgHandRed : imgHandBlue;
+        Image footImg = isRed ? imgFootRed : imgFootBlue;
+
+        // 3. Draw Shadow (Base)
+        gc.setFill(Color.rgb(0, 0, 0, 0.3));
+        gc.fillOval(p.x + 2, p.y + 5, r * 2.2, r * 2.2);
+
+        // --- DRAW PARTS (Layer order: Feet -> Hands -> Body) ---
+
+        // A. Draw FEET (Bottom layer, animating)
+        if (footImg != null) {
+            // Left Foot (Swings forward)
+            double lfX = p.x - bodySize * 0.25;
+            double lfY = p.y + bodySize * 0.25 + swingOffset;
+            drawPart(footImg, lfX, lfY, footSize);
+
+            // Right Foot (Swings backward)
+            double rfX = p.x + bodySize * 0.25;
+            double rfY = p.y + bodySize * 0.25 - swingOffset;
+            drawPart(footImg, rfX, rfY, footSize);
+        }
+
+        // B. Draw HANDS (Middle layer, mostly static)
+        if (handImg != null) {
+            // Left Hand
+            drawPart(handImg, p.x - bodySize * 0.4, p.y, handSize);
+            // Right Hand
+            drawPart(handImg, p.x + bodySize * 0.4, p.y, handSize);
+        }
+
+        // C. Draw BODY (Top layer)
+        if (bodyImg != null) {
+            drawPart(bodyImg, p.x, p.y, bodySize);
         } else {
-            // Fallback: Draw circle if image fails
-            gc.setFill(p.team.equals("RED") ? Color.RED : Color.BLUE);
+            // Fallback: Draw circle if body image missing
+            gc.setFill(isRed ? Color.RED : Color.BLUE);
             gc.fillOval(p.x, p.y, r*2, r*2);
         }
 
+        // 4. Overlays (Name & Stamina)
+        drawPlayerOverlays(p);
+    }
+
+    // Helper to draw an image centered at (cx, cy)
+    private void drawPart(Image img, double cx, double cy, double size) {
+        gc.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+    }
+
+    private void drawPlayerOverlays(GameState.PlayerState p) {
         // Name Tag
         gc.setFill(Color.rgb(0, 0, 0, 0.5));
         gc.fillRoundRect(p.x - 25, p.y - 35, 50, 18, 10, 10);
@@ -101,6 +185,8 @@ public class GamePanel extends Canvas {
         gc.setFill(p.stamina < 30 ? Color.RED : Color.LIGHTGREEN);
         gc.fillRect(p.x - 14, p.y + 21, 28 * (p.stamina / 100.0), 2);
     }
+
+    // --- Original Helpers (Unchanged) ---
 
     private void drawBallSprite(double x, double y) {
         double r = Constants.BALL_RADIUS;
