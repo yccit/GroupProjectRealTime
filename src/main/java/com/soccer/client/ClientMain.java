@@ -1,5 +1,7 @@
 package com.soccer.client;
 
+import com.soccer.client.input.KeyHandler;
+import com.soccer.client.ui.GamePanel;
 import com.soccer.common.Constants;
 import com.soccer.common.GameState;
 import com.soccer.common.InputPacket;
@@ -7,10 +9,8 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
-import javafx.scene.input.KeyCode;
+import javafx.scene.image.Image;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -25,21 +25,23 @@ import java.net.Socket;
 public class ClientMain extends Application {
     private Stage primaryStage;
 
-    // 网络相关
+    // --- Network Variables ---
     private Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
     private volatile boolean isConnected = false;
 
-    // 游戏状态
+    // --- Game State ---
     private GameState currentState;
     private InputPacket currentInput = new InputPacket();
     private String playerName;
 
-    // UI 组件
+    // --- UI Components ---
     private ListView<String> lobbyListRed = new ListView<>();
     private ListView<String> lobbyListBlue = new ListView<>();
-    private Canvas gameCanvas;
+
+    // --- Custom Game Panel (The Renderer) ---
+    private GamePanel gamePanel;
 
     public static void main(String[] args) {
         launch(args);
@@ -51,29 +53,70 @@ public class ClientMain extends Application {
         showLoginScreen();
     }
 
-    // --- 场景 1: 登录 ---
-    private void showLoginScreen() {
-        VBox root = new VBox(20);
-        root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #2c3e50;");
+    // --- Helper: Create Stadium Background Image ---
+    private Background createStadiumBackground() {
+        try {
+            // Load local resource image
+            String bgPath = getClass().getResource("/images/bg.jpg").toExternalForm();
+            Image bgImage = new Image(bgPath);
 
-        Label title = new Label("REAL-TIME SOCCER");
-        title.setTextFill(Color.WHITE);
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 30));
+            return new Background(new BackgroundImage(
+                    bgImage,
+                    BackgroundRepeat.NO_REPEAT,
+                    BackgroundRepeat.NO_REPEAT,
+                    BackgroundPosition.CENTER,
+                    new BackgroundSize(1.0, 1.0, true, true, false, false) // Cover mode
+            ));
+        } catch (Exception e) {
+            System.err.println("Failed to load background image. Please check src/main/resources/images/bg.jpg");
+            // Fallback to dark background if image fails
+            return new Background(new BackgroundFill(Color.rgb(44, 62, 80), null, null));
+        }
+    }
+
+    // --- SCENE 1: LOGIN SCREEN ---
+    private void showLoginScreen() {
+        VBox root = new VBox(25);
+        root.setAlignment(Pos.CENTER);
+        root.setBackground(createStadiumBackground());
+
+        // Container box with semi-transparent black background
+        VBox container = new VBox(20);
+        container.setAlignment(Pos.CENTER);
+        container.setMaxWidth(400);
+        container.setPadding(new javafx.geometry.Insets(40));
+        container.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 20; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);");
+
+        // Title
+        Label title = new Label("ULTIMATE SOCCER");
+        title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 32px;");
+
+        // Styling for inputs
+        String inputStyle = "-fx-background-color: rgba(255, 255, 255, 0.9); -fx-background-radius: 30; -fx-padding: 10 20; -fx-font-size: 14px;";
 
         TextField ipField = new TextField("localhost");
         ipField.setPromptText("Server IP Address");
-        ipField.setMaxWidth(200);
+        ipField.setStyle(inputStyle);
+        ipField.setMaxWidth(300);
 
         TextField nameField = new TextField();
-        nameField.setPromptText("Enter your name");
-        nameField.setMaxWidth(200);
+        nameField.setPromptText("Enter Player Name");
+        nameField.setStyle(inputStyle);
+        nameField.setMaxWidth(300);
 
-        Button joinBtn = new Button("JOIN GAME");
-        joinBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 16px;");
+        // Styling for button
+        Button joinBtn = new Button("JOIN MATCH");
+        String btnStyle = "-fx-background-color: linear-gradient(to bottom, #2ecc71, #27ae60); " +
+                "-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 16px; " +
+                "-fx-background-radius: 30; -fx-padding: 10 40; -fx-cursor: hand;";
+        joinBtn.setStyle(btnStyle);
+
+        // Hover effect
+        joinBtn.setOnMouseEntered(e -> joinBtn.setStyle(btnStyle + "-fx-background-color: linear-gradient(to bottom, #27ae60, #2ecc71);"));
+        joinBtn.setOnMouseExited(e -> joinBtn.setStyle(btnStyle));
 
         Label statusLabel = new Label("");
-        statusLabel.setTextFill(Color.RED);
+        statusLabel.setTextFill(Color.web("#ff6b6b"));
 
         joinBtn.setOnAction(e -> {
             String ip = ipField.getText().trim();
@@ -82,80 +125,107 @@ public class ClientMain extends Application {
             if (!name.isEmpty() && !ip.isEmpty()) {
                 playerName = name;
                 joinBtn.setDisable(true);
-                statusLabel.setText("Connecting...");
+                joinBtn.setText("CONNECTING...");
+                statusLabel.setText("");
                 new Thread(() -> connectToServer(ip, name, statusLabel)).start();
+            } else {
+                statusLabel.setText("Please enter IP and Name!");
             }
         });
 
-        root.getChildren().addAll(title, new Label("Server IP:"), ipField, new Label("Name:"), nameField, joinBtn, statusLabel);
-        ((Label)root.getChildren().get(1)).setTextFill(Color.WHITE);
-        ((Label)root.getChildren().get(3)).setTextFill(Color.WHITE);
+        container.getChildren().addAll(title, new Label(" "), ipField, nameField, new Label(" "), joinBtn, statusLabel);
+        root.getChildren().add(container);
 
-        primaryStage.setScene(new Scene(root, 600, 400));
+        primaryStage.setScene(new Scene(root, 800, 600));
         primaryStage.setTitle("Soccer Game - Login");
         primaryStage.show();
     }
 
-    // --- 场景 2: 大厅 ---
+    // --- SCENE 2: LOBBY SCREEN ---
     private void showLobbyScreen() {
         BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color: #34495e;");
+        root.setBackground(createStadiumBackground());
 
-        Label title = new Label("GAME LOBBY - Waiting for players...");
-        title.setTextFill(Color.WHITE);
-        title.setFont(new Font(24));
+        // Top Header
+        Label title = new Label("MATCH LOBBY");
+        title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 28px;");
         HBox topBox = new HBox(title);
         topBox.setAlignment(Pos.CENTER);
         topBox.setPadding(new javafx.geometry.Insets(20));
+        topBox.setStyle("-fx-background-color: rgba(0,0,0,0.6);");
         root.setTop(topBox);
 
-        HBox listsBox = new HBox(20);
+        // Center Lists
+        HBox listsBox = new HBox(40);
         listsBox.setAlignment(Pos.CENTER);
+        listsBox.setPadding(new javafx.geometry.Insets(20));
 
-        VBox redBox = new VBox(10, new Label("RED TEAM"), lobbyListRed);
-        ((Label)redBox.getChildren().get(0)).setTextFill(Color.RED);
+        String listStyle = "-fx-background-color: rgba(255,255,255,0.9); -fx-background-radius: 10; -fx-font-size: 16px; -fx-control-inner-background: transparent;";
+        lobbyListRed.setStyle(listStyle);
+        lobbyListRed.setPrefHeight(300);
+        lobbyListBlue.setStyle(listStyle);
+        lobbyListBlue.setPrefHeight(300);
 
-        VBox blueBox = new VBox(10, new Label("BLUE TEAM"), lobbyListBlue);
-        ((Label)blueBox.getChildren().get(0)).setTextFill(Color.CYAN);
+        VBox redBox = new VBox(10);
+        redBox.setAlignment(Pos.CENTER);
+        Label redLabel = new Label("RED TEAM");
+        redLabel.setStyle("-fx-text-fill: #ff6b6b; -fx-font-weight: bold; -fx-font-size: 18px; -fx-effect: dropshadow(one-pass-box, black, 5, 0, 0, 0);");
+        redBox.getChildren().addAll(redLabel, lobbyListRed);
+
+        VBox blueBox = new VBox(10);
+        blueBox.setAlignment(Pos.CENTER);
+        Label blueLabel = new Label("BLUE TEAM");
+        blueLabel.setStyle("-fx-text-fill: #48dbfb; -fx-font-weight: bold; -fx-font-size: 18px; -fx-effect: dropshadow(one-pass-box, black, 5, 0, 0, 0);");
+        blueBox.getChildren().addAll(blueLabel, lobbyListBlue);
 
         listsBox.getChildren().addAll(redBox, blueBox);
         root.setCenter(listsBox);
 
+        // Bottom Button
         Button startBtn = new Button("START MATCH");
-        startBtn.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-size: 18px;");
+        String startStyle = "-fx-background-color: linear-gradient(to bottom, #e67e22, #d35400); " +
+                "-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 20px; " +
+                "-fx-background-radius: 30; -fx-padding: 15 60; -fx-cursor: hand; " +
+                "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 10, 0, 0, 5);";
+        startBtn.setStyle(startStyle);
         startBtn.setOnAction(e -> sendCommand("START"));
 
         HBox bottomBox = new HBox(startBtn);
         bottomBox.setAlignment(Pos.CENTER);
-        bottomBox.setPadding(new javafx.geometry.Insets(20));
+        bottomBox.setPadding(new javafx.geometry.Insets(30));
         root.setBottom(bottomBox);
 
         primaryStage.setScene(new Scene(root, 800, 600));
         primaryStage.setTitle("Lobby - " + playerName);
     }
 
-    // --- 场景 3: 游戏画面 ---
+    // --- SCENE 3: GAMEPLAY SCREEN ---
     private void showGameScreen() {
         BorderPane root = new BorderPane();
-        gameCanvas = new Canvas(Constants.WIDTH, Constants.HEIGHT);
-        root.setCenter(gameCanvas);
+
+        // Initialize GamePanel (Images will load automatically)
+        gamePanel = new GamePanel();
+        root.setCenter(gamePanel);
 
         Scene gameScene = new Scene(root);
 
-        gameScene.setOnKeyPressed(e -> handleKey(e.getCode(), true));
-        gameScene.setOnKeyReleased(e -> handleKey(e.getCode(), false));
+        // Handle Key Input
+        gameScene.setOnKeyPressed(e -> KeyHandler.handle(e.getCode(), true, currentInput));
+        gameScene.setOnKeyReleased(e -> KeyHandler.handle(e.getCode(), false, currentInput));
 
         primaryStage.setScene(gameScene);
         primaryStage.setTitle("Soccer Game - Playing");
 
+        // Main Rendering Loop
         new javafx.animation.AnimationTimer() {
             @Override
             public void handle(long now) {
-                render(gameCanvas.getGraphicsContext2D());
+                gamePanel.render(currentState);
             }
         }.start();
     }
 
+    // --- NETWORKING LOGIC ---
     private void connectToServer(String ip, String name, Label statusLabel) {
         try {
             socket = new Socket(ip, Constants.PORT);
@@ -229,128 +299,5 @@ public class ClientMain extends Application {
         InputPacket pkt = new InputPacket();
         pkt.command = cmd;
         sendPacket(pkt);
-    }
-
-    private void handleKey(KeyCode code, boolean isPressed) {
-        switch (code) {
-            case W -> currentInput.up = isPressed;
-            case S -> currentInput.down = isPressed;
-            case A -> currentInput.left = isPressed;
-            case D -> currentInput.right = isPressed;
-            case SPACE -> currentInput.shoot = isPressed;
-        }
-    }
-
-    // ★★★ 修复后的 Render 方法 (去掉了 HALFTIME，增加了个人进球统计) ★★★
-    private void render(GraphicsContext gc) {
-        if (currentState == null) return;
-
-        // 1. 背景
-        if ("RAINY".equals(currentState.weather)) {
-            gc.setFill(Color.rgb(30, 60, 30));
-        } else {
-            gc.setFill(Color.rgb(50, 150, 50));
-        }
-        gc.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
-
-        // 2. 场地线
-        gc.setStroke(Color.WHITE); gc.setLineWidth(5);
-        gc.strokeLine(Constants.WIDTH/2, 0, Constants.WIDTH/2, Constants.HEIGHT);
-        gc.strokeRect(0, Constants.HEIGHT/2 - 100, 50, 200);
-        gc.strokeRect(Constants.WIDTH - 50, Constants.HEIGHT/2 - 100, 50, 200);
-
-        // 3. 玩家
-        for (GameState.PlayerState p : currentState.players) {
-            if (p.isGoalKeeper) gc.setFill(Color.YELLOW);
-            else gc.setFill(p.team.equals("RED") ? Color.RED : Color.BLUE);
-            gc.fillOval(p.x, p.y, Constants.PLAYER_RADIUS*2, Constants.PLAYER_RADIUS*2);
-
-            gc.setFill(Color.BLACK);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-            gc.fillText(p.name, p.x - 10, p.y - 15);
-
-            // 体力条
-            gc.setFill(Color.BLACK);
-            gc.fillRect(p.x, p.y - 8, 30, 6);
-            gc.setFill(p.stamina < 30 ? Color.RED : Color.LIGHTGREEN);
-            gc.fillRect(p.x + 1, p.y - 7, 28 * (p.stamina / 100.0), 4);
-        }
-
-        // 4. 球
-        gc.setFill(Color.WHITE);
-        gc.fillOval(currentState.ballX - Constants.BALL_RADIUS,
-                currentState.ballY - Constants.BALL_RADIUS,
-                Constants.BALL_RADIUS*2, Constants.BALL_RADIUS*2);
-
-        // 雨滴
-        if ("RAINY".equals(currentState.weather)) drawRain(gc);
-
-        // 5. UI 信息 (比分、时间)
-        gc.setFill(Color.WHITE);
-        gc.setFont(Font.font("Arial", FontWeight.BOLD, 30));
-        gc.fillText(currentState.scoreRed + " - " + currentState.scoreBlue, Constants.WIDTH/2 - 50, 50);
-        gc.fillText(currentState.timeString, Constants.WIDTH/2 - 40, 90);
-        gc.setFont(Font.font("Arial", 20));
-        gc.fillText("Weather: " + currentState.weather, 20, 40);
-
-        // 6. 倒计时显示
-        if (currentState.currentPhase == GameState.Phase.COUNTDOWN) {
-            gc.setFill(Color.YELLOW);
-            gc.setStroke(Color.BLACK);
-            gc.setLineWidth(3);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 80));
-
-            String text = String.valueOf(currentState.countdownValue);
-            if (currentState.countdownValue <= 0) text = "GO!";
-
-            gc.fillText(text, Constants.WIDTH/2 - 50, Constants.HEIGHT/2);
-            gc.strokeText(text, Constants.WIDTH/2 - 50, Constants.HEIGHT/2);
-        }
-
-        // 7. ★ 游戏结束结算面板 (详细信息)
-        if (currentState.currentPhase == GameState.Phase.GAME_OVER) {
-            // 半透明遮罩
-            gc.setFill(Color.rgb(0, 0, 0, 0.8));
-            gc.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
-
-            // 标题
-            gc.setFill(Color.GOLD);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 60));
-            String resultText = "GAME OVER";
-            gc.fillText(resultText, Constants.WIDTH/2 - 180, 200);
-
-            // 获胜者
-            gc.setFill(Color.WHITE);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 40));
-            gc.fillText("WINNER: " + currentState.winner, Constants.WIDTH/2 - 150, 280);
-
-            // 总比分
-            gc.setFill(Color.CYAN);
-            gc.fillText("RED " + currentState.scoreRed + " - " + currentState.scoreBlue + " BLUE", Constants.WIDTH/2 - 140, 350);
-
-            // ★ 真人玩家进球统计
-            gc.setFill(Color.WHITE);
-            gc.setFont(Font.font("Arial", 20));
-            gc.fillText("--- Player Stats ---", Constants.WIDTH/2 - 80, 420);
-
-            int yOffset = 460;
-            for (GameState.PlayerState p : currentState.players) {
-                if (!p.isBot) { // 只显示真人
-                    String stats = p.name + " (" + p.team + "): " + p.goals + " Goals";
-                    gc.fillText(stats, Constants.WIDTH/2 - 100, yOffset);
-                    yOffset += 30;
-                }
-            }
-        }
-    }
-
-    private void drawRain(GraphicsContext gc) {
-        gc.setStroke(Color.rgb(200, 200, 255, 0.5));
-        gc.setLineWidth(2);
-        for (int i = 0; i < 100; i++) {
-            double rx = Math.random() * Constants.WIDTH;
-            double ry = Math.random() * Constants.HEIGHT;
-            gc.strokeLine(rx, ry, rx - 5, ry + 15);
-        }
     }
 }
