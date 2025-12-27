@@ -119,14 +119,49 @@ public class GameRoom implements Runnable {
             if (gameState.currentPhase == GameState.Phase.COUNTDOWN) {
                 updateCountdown();
             } else if (gameState.currentPhase == GameState.Phase.PLAYING) {
+                // ★ NEW: 每一帧都检查有没有人按了 End Game
+                checkEndGameCommand();
+
+                // 如果检查完发现游戏结束了，就跳过下面的物理更新
+                if (gameState.currentPhase == GameState.Phase.GAME_OVER) {
+                    try { Thread.sleep(16); } catch (Exception e) {}
+                    continue;
+                }
+
                 updatePhysics(dt);
                 updateAI(dt);
                 updateTime();
             }
-            // 移除了 HALFTIME 分支
 
             try { Thread.sleep(16); } catch (Exception e) {}
         }
+    }
+
+    // ★ NEW: 专门检查 "END" 指令的方法
+    private void checkEndGameCommand() {
+        for (InputPacket packet : inputs.values()) {
+            if (packet != null && "END".equals(packet.command)) {
+                System.out.println("[Room] Received END GAME command!");
+                finishGame(); // 立即结束游戏
+                break;
+            }
+        }
+    }
+
+    // ★ NEW: 统一的结束游戏逻辑 (无论是时间到还是按钮点击，都走这里)
+    private void finishGame() {
+        if (gameState.currentPhase == GameState.Phase.GAME_OVER) return; // 防止重复执行
+
+        gameState.currentPhase = GameState.Phase.GAME_OVER;
+
+        // 判定赢家
+        if (gameState.scoreRed > gameState.scoreBlue) gameState.winner = "RED TEAM";
+        else if (gameState.scoreBlue > gameState.scoreRed) gameState.winner = "BLUE TEAM";
+        else gameState.winner = "DRAW";
+
+        // 保存到数据库
+        DatabaseManager.saveMatch(gameState.winner, gameState.scoreRed, gameState.scoreBlue);
+        System.out.println("[Room] Game Finished. Winner: " + gameState.winner);
     }
 
     private void updateCountdown() {
@@ -304,12 +339,8 @@ public class GameRoom implements Runnable {
         long elapsed = (System.currentTimeMillis() - startTime - totalPausedTime) / 1000;
 
         if (elapsed >= GAME_DURATION_REAL_SEC) {
-            gameState.currentPhase = GameState.Phase.GAME_OVER;
-            if (gameState.scoreRed > gameState.scoreBlue) gameState.winner = "RED TEAM";
-            else if (gameState.scoreBlue > gameState.scoreRed) gameState.winner = "BLUE TEAM";
-            else gameState.winner = "DRAW";
-
-            DatabaseManager.saveMatch(gameState.winner, gameState.scoreRed, gameState.scoreBlue);
+            // ★ 时间到了，也调用同一个结束逻辑
+            finishGame();
         }
 
         long virtualSeconds = (long) (elapsed * VIRTUAL_TIME_MULTIPLIER);
