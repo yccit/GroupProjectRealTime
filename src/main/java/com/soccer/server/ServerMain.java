@@ -2,73 +2,121 @@ package com.soccer.server;
 
 import com.soccer.common.Constants;
 import com.soccer.common.InputPacket;
-import com.soccer.common.GameState;
 
-import java.io.*;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ServerMain {
-    private static GameRoom gameRoom = new GameRoom();
-    private static AtomicInteger playerIdGen = new AtomicInteger(1);
+    private static GameRoom gameRoom;
+    private static final List<ObjectOutputStream> clientWriters = new CopyOnWriteArrayList<>();
 
     public static void main(String[] args) {
-        new Thread(gameRoom).start(); // 启动游戏循环线程
-        System.out.println("Server started on port " + Constants.PORT);
+        System.out.println(">>> STARTING SOCCER SERVER on Port " + Constants.PORT + " <<<");
+        gameRoom = new GameRoom();
+        new Thread(gameRoom).start();
+        new Thread(ServerMain::broadcastLoop).start();
 
         try (ServerSocket serverSocket = new ServerSocket(Constants.PORT)) {
             while (true) {
-                Socket client = serverSocket.accept();
-                new Thread(new ClientHandler(client)).start();
+                System.out.println("Waiting for connections...");
+                Socket socket = serverSocket.accept();
+                new Thread(() -> handleClient(socket)).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    static class ClientHandler implements Runnable {
-        private Socket socket;
-        private ObjectOutputStream out;
-        private ObjectInputStream in;
-        private int id;
+    private static void handleClient(Socket socket) {
+        ObjectOutputStream out = null;
+        ObjectInputStream in = null;
+        int playerId = -1;
 
-        public ClientHandler(Socket socket) {
-            this.socket = socket;
-            this.id = playerIdGen.getAndIncrement();
-        }
+        try {
+            out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(socket.getInputStream());
 
-        @Override
-        public void run() {
-            try {
-                out = new ObjectOutputStream(socket.getOutputStream());
-                in = new ObjectInputStream(socket.getInputStream());
+            // 1. 读取第一个包 (握手)
+            Object firstObj = in.readObject();
+            if (firstObj instanceof InputPacket) {
+                InputPacket packet = (InputPacket) firstObj;
 
-                while (true) {
-                    Object obj = in.readObject();
-                    if (obj instanceof InputPacket) {
-                        InputPacket input = (InputPacket) obj;
-
-                        // 处理特殊指令
-                        if ("JOIN".equals(input.command)) {
-                            gameRoom.addPlayer(id, input.playerName);
-                        } else if ("START".equals(input.command)) {
-                            gameRoom.startGame();
-                        } else {
-                            // 处理游戏操作
-                            gameRoom.inputs.put(id, input);
-                        }
-                    }
-
-                    // 每收到一次包，回发一次最新状态
-                    // 注意：reset以避免对象缓存引用问题
-                    out.reset();
-                    out.writeObject(gameRoom.getGameState());
-                    out.flush();
+                if ("ADMIN_LOGIN".equals(packet.command)) {
+                    System.out.println(">>> ADMIN CONNECTED! <<<");
+                    clientWriters.add(out); // Admin 直接通过
                 }
-            } catch (Exception e) {
-                System.out.println("Client " + id + " disconnected.");
+                else if ("JOIN".equals(packet.command)) {
+                    // ★★★ NEW: 检查名字和人数 ★★★
+                    String checkResult = gameRoom.checkJoinRequest(packet.playerName);
+
+                    if ("OK".equals(checkResult)) {
+                        // 通过！发送 OK 给客户端
+                        out.writeObject("OK");
+                        out.flush();
+
+                        // 加入游戏
+                        playerId = packet.id;
+                        String name = packet.playerName;
+                        System.out.println(">>> PLAYER JOINED: " + name + " (" + playerId + ")");
+                        gameRoom.addPlayer(playerId, name);
+                        clientWriters.add(out);
+                    } else {
+                        // 失败！发送错误信息 (FAIL:原因)
+                        out.writeObject("FAIL:" + checkResult);
+                        out.flush();
+                        System.out.println("Rejected join request: " + checkResult);
+                        socket.close(); // 断开连接
+                        return; // 结束线程
+                    }
+                }
             }
+
+            // 2. 正常游戏循环
+            while (true) {
+                Object obj = in.readObject();
+                if (obj instanceof InputPacket) {
+                    InputPacket input = (InputPacket) obj;
+                    if (input.id != 0) {
+                        gameRoom.inputs.put(input.id, input);
+                    } else if ("START".equals(input.command) || "END".equals(input.command) || "APPROVE".equals(input.command)) {
+                        gameRoom.inputs.put(-999, input);
+                    }
+                }
+            }
+
+        } catch (EOFException | java.net.SocketException e) {
+            // Client 正常断开
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (out != null) clientWriters.remove(out);
+            if (playerId != -1) gameRoom.removePlayer(playerId);
+            try { socket.close(); } catch (IOException e) {}
+        }
+    }
+
+    private static void broadcastLoop() {
+        while (true) {
+            try {
+                Object stateToSend = gameRoom.getGameState();
+                for (ObjectOutputStream writer : clientWriters) {
+                    try {
+                        writer.reset();
+                        writer.writeUnshared(stateToSend);
+                        writer.flush();
+                    } catch (IOException e) {
+                        clientWriters.remove(writer);
+                    }
+                }
+                Thread.sleep(16);
+            } catch (Exception e) { e.printStackTrace(); }
         }
     }
 }

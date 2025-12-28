@@ -31,31 +31,36 @@ public class GamePanel extends Canvas {
     private long frameCounter = 0;
 
     // --- Button Coordinates (End Game Button) ---
-    // 定义按钮的位置和大小
     private final double BTN_X = Constants.WIDTH - 140; // 右上角
     private final double BTN_Y = 20;
     private final double BTN_W = 120;
     private final double BTN_H = 40;
 
-    // 这是一个接口，用来告诉 ClientMain "我们要结束游戏了"
+    // Callback interface
     public Runnable onEndGameClicked;
 
-    public GamePanel() {
+    // ★★★ NEW: Store my ID to check approval status ★★★
+    private int myClientId;
+
+    // ★★★ UPDATED CONSTRUCTOR: Accepts clientId ★★★
+    public GamePanel(int clientId) {
         super(Constants.WIDTH, Constants.HEIGHT);
+        this.myClientId = clientId; // Save ID
         this.gc = this.getGraphicsContext2D();
         loadImages();
 
-        // --- 鼠标点击侦测 ---
-        // 当你在画布上点击鼠标时，这段代码会运行
+        // --- Mouse Click Detection ---
         this.setOnMouseClicked(event -> {
             double mx = event.getX();
             double my = event.getY();
 
-            // 检查是否点到了右上角的【END GAME】按钮
+            // Check End Game Button Click
             if (mx >= BTN_X && mx <= BTN_X + BTN_W && my >= BTN_Y && my <= BTN_Y + BTN_H) {
-                System.out.println("End Game Button Clicked!"); // 测试用
+                // Only allow clicking if the game is actually running (not waiting for approval)
+                // We will handle the "isApproved" check visually in render()
+                System.out.println("End Game Button Clicked!");
                 if (onEndGameClicked != null) {
-                    onEndGameClicked.run(); // 通知外面去结束游戏
+                    onEndGameClicked.run();
                 }
             }
         });
@@ -77,6 +82,24 @@ public class GamePanel extends Canvas {
 
     public void render(GameState currentState) {
         if (currentState == null) return;
+
+        // ★★★ NEW: CHECK ADMIN APPROVAL ★★★
+        // Find "my" player object from the list
+        GameState.PlayerState myPlayer = null;
+        for (GameState.PlayerState p : currentState.players) {
+            if (p.id == myClientId) {
+                myPlayer = p;
+                break;
+            }
+        }
+
+        // If I am found, but NOT approved yet, show the Waiting Screen
+        if (myPlayer != null && !myPlayer.isApproved) {
+            drawWaitingScreen();
+            return; // Stop rendering the rest of the game
+        }
+
+        // --- IF APPROVED, DRAW NORMAL GAME ---
         frameCounter++;
 
         // 1. Draw Pitch
@@ -100,7 +123,7 @@ public class GamePanel extends Canvas {
         // 5. HUD Information
         drawHUD(currentState);
 
-        // 6. Draw "End Game" Button (只在游戏进行时显示)
+        // 6. Draw "End Game" Button (Only in Playing Phase)
         if (currentState.currentPhase == GameState.Phase.PLAYING) {
             drawEndGameButton();
         }
@@ -111,69 +134,78 @@ public class GamePanel extends Canvas {
         }
     }
 
-    // --- 画一个红色的结束按钮 ---
+    // ★★★ NEW: Helper to draw the black waiting screen ★★★
+    private void drawWaitingScreen() {
+        // Full black background
+        gc.setFill(Color.BLACK);
+        gc.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
+
+        // White Text
+        gc.setFill(Color.WHITE);
+        gc.setTextAlign(TextAlignment.CENTER);
+
+        // Main Message
+        gc.setFont(Font.font("Arial", FontWeight.BOLD, 40));
+        gc.fillText("WAITING FOR ADMIN APPROVAL...", Constants.WIDTH / 2.0, Constants.HEIGHT / 2.0 - 50);
+
+        // Instructions
+        gc.setFont(Font.font("Arial", 20));
+        gc.setFill(Color.LIGHTGRAY);
+        gc.fillText("(Admin: Press 'P' to approve players)", Constants.WIDTH / 2.0, Constants.HEIGHT / 2.0 + 20);
+    }
+
+    // --- BUTTON DRAWING ---
     private void drawEndGameButton() {
-        // 按钮背景 (红色半透明)
         gc.setFill(Color.rgb(255, 50, 50, 0.8));
         gc.fillRoundRect(BTN_X, BTN_Y, BTN_W, BTN_H, 10, 10);
 
-        // 按钮边框 (白色)
         gc.setStroke(Color.WHITE);
         gc.setLineWidth(2);
         gc.strokeRoundRect(BTN_X, BTN_Y, BTN_W, BTN_H, 10, 10);
 
-        // 按钮文字
         gc.setFill(Color.WHITE);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 16));
         gc.setTextAlign(TextAlignment.CENTER);
         gc.fillText("END GAME", BTN_X + BTN_W / 2, BTN_Y + 26);
     }
 
-    // --- 👑 豪华升级版：结算界面 (Luxury Result Page) ---
+    // --- GAME OVER SCREEN (Luxury) ---
     private void drawGameOverScreen(GameState state) {
         double w = Constants.WIDTH;
         double h = Constants.HEIGHT;
 
-        // 1. 全屏半透明背景 (加深一点，让背景模糊感强一点)
         gc.setFill(Color.rgb(0, 0, 0, 0.85));
         gc.fillRect(0, 0, w, h);
 
-        // --- 绘制中间的结算卡片 (Panel) ---
         double panelW = 500;
         double panelH = 420;
         double panelX = (w - panelW) / 2;
         double panelY = (h - panelH) / 2;
 
-        // 卡片阴影 (Shadow)
         gc.setFill(Color.rgb(0, 0, 0, 0.5));
         gc.fillRoundRect(panelX + 15, panelY + 15, panelW, panelH, 30, 30);
 
-        // 卡片背景 (深蓝色高级质感)
         gc.setFill(Color.web("#2c3e50"));
         gc.fillRoundRect(panelX, panelY, panelW, panelH, 30, 30);
 
-        // 卡片金边框 (Golden Border)
         gc.setStroke(Color.GOLD);
         gc.setLineWidth(4);
         gc.strokeRoundRect(panelX, panelY, panelW, panelH, 30, 30);
 
-        // --- 2. 标题 (MATCH RESULT) ---
         gc.setTextAlign(TextAlignment.CENTER);
         gc.setFill(Color.GOLD);
         gc.setFont(Font.font("Arial Black", FontWeight.BOLD, 48));
         gc.fillText("MATCH RESULT", w / 2, panelY + 70);
 
-        // --- 3. 显示赢家 (Winner) ---
         String winnerText = "DRAW";
         Color winnerColor = Color.WHITE;
 
-        // 这里的判断要小心大小写，根据你的 Server 发送的字符串
         if (state.winner != null && state.winner.toUpperCase().contains("RED")) {
             winnerText = "RED TEAM WINS!";
-            winnerColor = Color.web("#ff6b6b"); // 亮红色
+            winnerColor = Color.web("#ff6b6b");
         } else if (state.winner != null && state.winner.toUpperCase().contains("BLUE")) {
             winnerText = "BLUE TEAM WINS!";
-            winnerColor = Color.web("#48dbfb"); // 亮蓝色
+            winnerColor = Color.web("#48dbfb");
         } else {
             winnerText = "MATCH DRAW";
             winnerColor = Color.LIGHTGRAY;
@@ -181,19 +213,16 @@ public class GamePanel extends Canvas {
 
         gc.setFill(winnerColor);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 36));
-        // 给文字加一点阴影效果
         gc.setStroke(Color.BLACK);
         gc.setLineWidth(1);
         gc.strokeText(winnerText, w / 2, panelY + 130);
         gc.fillText(winnerText, w / 2, panelY + 130);
 
-        // --- 4. 比分板 (Score Board) ---
         double scoreBoxW = 220;
         double scoreBoxH = 60;
         double scoreBoxX = (w - scoreBoxW) / 2;
         double scoreBoxY = panelY + 150;
 
-        // 比分背景框
         gc.setFill(Color.rgb(0, 0, 0, 0.4));
         gc.fillRoundRect(scoreBoxX, scoreBoxY, scoreBoxW, scoreBoxH, 20, 20);
 
@@ -201,25 +230,21 @@ public class GamePanel extends Canvas {
         gc.setFont(Font.font("Monospaced", FontWeight.BOLD, 42));
         gc.fillText(state.scoreRed + " - " + state.scoreBlue, w / 2, scoreBoxY + 45);
 
-        // --- 5. 最佳射手列表 (MVP List) ---
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         gc.setFill(Color.YELLOW);
         gc.fillText("★ TOP SCORERS ★", w / 2, panelY + 250);
 
-        // 画一条分割线
         gc.setStroke(Color.GRAY);
         gc.setLineWidth(1);
         gc.strokeLine(panelX + 60, panelY + 260, panelX + panelW - 60, panelY + 260);
 
         int yOffset = (int) (panelY + 290);
         boolean hasScorer = false;
-
-        // 遍历所有玩家，显示进球的
         int count = 0;
         for (GameState.PlayerState p : state.players) {
             if (p.goals > 0) {
                 hasScorer = true;
-                if (count >= 3) break; // 最多显示前3名，以免塞爆
+                if (count >= 3) break;
 
                 gc.setFill(p.team.equals("RED") ? Color.PINK : Color.LIGHTBLUE);
                 gc.setFont(Font.font("Arial", 16));
@@ -235,13 +260,12 @@ public class GamePanel extends Canvas {
             gc.fillText("(No goals scored)", w / 2, yOffset);
         }
 
-        // --- 6. 底部小提示 ---
         gc.setFill(Color.rgb(255, 255, 255, 0.4));
         gc.setFont(Font.font("Arial", 10));
         gc.fillText("Re-run application to start a new match", w / 2, panelY + panelH - 15);
     }
 
-    // --- 原有的 Player 绘制 (保持不变) ---
+    // --- DRAW PLAYER ---
     private void drawModularPlayer(GameState.PlayerState p) {
         double r = Constants.PLAYER_RADIUS;
         double bodySize = r * 2.8;
