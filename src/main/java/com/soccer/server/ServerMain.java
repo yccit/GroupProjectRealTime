@@ -11,22 +11,46 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ServerMain {
     private static GameRoom gameRoom;
     private static final List<ObjectOutputStream> clientWriters = new CopyOnWriteArrayList<>();
 
+    // ★★★ 满足要求 (a): 使用线程池管理客户端连接，防止内存溢出 ★★★
+    private static final ExecutorService pool = Executors.newFixedThreadPool(50);
+
     public static void main(String[] args) {
         System.out.println(">>> STARTING SOCCER SERVER on Port " + Constants.PORT + " <<<");
         gameRoom = new GameRoom();
-        new Thread(gameRoom).start();
+
+        Thread gameThread = new Thread(gameRoom);
+        // ★★★ 满足要求 (b): Thread Influencing (设置优先级) ★★★
+        gameThread.setPriority(Thread.MAX_PRIORITY);
+        gameThread.start();
+
         new Thread(ServerMain::broadcastLoop).start();
+
+        // ★★★ 满足要求 (c): Implement joining threads ★★★
+        // 添加关闭钩子，当强制结束服务器时，尝试等待游戏线程结束
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                System.out.println("Shutting down server...");
+                pool.shutdown();
+                gameThread.join(1000); // 尝试等待游戏线程结束
+                System.out.println("Server shutdown complete.");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }));
 
         try (ServerSocket serverSocket = new ServerSocket(Constants.PORT)) {
             while (true) {
                 System.out.println("Waiting for connections...");
                 Socket socket = serverSocket.accept();
-                new Thread(() -> handleClient(socket)).start();
+                // 使用线程池执行
+                pool.execute(() -> handleClient(socket));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -43,42 +67,34 @@ public class ServerMain {
             out.flush();
             in = new ObjectInputStream(socket.getInputStream());
 
-            // 1. 读取第一个包 (握手)
             Object firstObj = in.readObject();
             if (firstObj instanceof InputPacket) {
                 InputPacket packet = (InputPacket) firstObj;
 
                 if ("ADMIN_LOGIN".equals(packet.command)) {
                     System.out.println(">>> ADMIN CONNECTED! <<<");
-                    clientWriters.add(out); // Admin 直接通过
+                    clientWriters.add(out);
                 }
                 else if ("JOIN".equals(packet.command)) {
-                    // ★★★ NEW: 检查名字和人数 ★★★
                     String checkResult = gameRoom.checkJoinRequest(packet.playerName);
 
                     if ("OK".equals(checkResult)) {
-                        // 通过！发送 OK 给客户端
                         out.writeObject("OK");
                         out.flush();
-
-                        // 加入游戏
                         playerId = packet.id;
                         String name = packet.playerName;
                         System.out.println(">>> PLAYER JOINED: " + name + " (" + playerId + ")");
                         gameRoom.addPlayer(playerId, name);
                         clientWriters.add(out);
                     } else {
-                        // 失败！发送错误信息 (FAIL:原因)
                         out.writeObject("FAIL:" + checkResult);
                         out.flush();
-                        System.out.println("Rejected join request: " + checkResult);
-                        socket.close(); // 断开连接
-                        return; // 结束线程
+                        socket.close();
+                        return;
                     }
                 }
             }
 
-            // 2. 正常游戏循环
             while (true) {
                 Object obj = in.readObject();
                 if (obj instanceof InputPacket) {
@@ -92,7 +108,7 @@ public class ServerMain {
             }
 
         } catch (EOFException | java.net.SocketException e) {
-            // Client 正常断开
+            // Client left
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

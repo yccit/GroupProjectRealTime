@@ -27,7 +27,7 @@ public class ClientMain extends Application {
     private ObjectInputStream in;
     private volatile boolean isConnected = false;
 
-    private final int clientId = (int) (Math.random() * 10000);
+    private final int clientId = (int) (Math.random() * 1000000); // 增加 ID 范围防止冲突
     private GameState currentState;
     private InputPacket currentInput = new InputPacket();
     private String playerName;
@@ -133,7 +133,6 @@ public class ClientMain extends Application {
 
         primaryStage.setScene(new Scene(root, 800, 600));
 
-        // ★★★ 修复问题 1：打开界面时立刻刷新列表，防止空白 ★★★
         if (currentState != null) {
             updateLobbyLists(currentState);
         }
@@ -179,4 +178,16 @@ public class ClientMain extends Application {
     }
 
     private void sendCommand(String cmd) { InputPacket pkt = new InputPacket(); pkt.command = cmd; pkt.id = clientId; sendPacket(pkt); }
+
+    // ★★★ 必改：确保关闭窗口时彻底杀掉进程，防止内存泄露 ★★★
+    @Override
+    public void stop() throws Exception {
+        super.stop();
+        isConnected = false;
+        if (socket != null && !socket.isClosed()) {
+            try { socket.close(); } catch (Exception e) {}
+        }
+        System.out.println("Client Stopped. Exiting system.");
+        System.exit(0);
+    }
 }
