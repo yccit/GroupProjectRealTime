@@ -10,7 +10,10 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 
+import java.util.ArrayList; // 新加的
+import java.util.Comparator; // 新加的
 import java.util.HashMap;
+import java.util.List; // 新加的
 import java.util.Map;
 
 public class GamePanel extends Canvas {
@@ -241,7 +244,14 @@ public class GamePanel extends Canvas {
         int yOffset = (int) (panelY + 290);
         boolean hasScorer = false;
         int count = 0;
-        for (GameState.PlayerState p : state.players) {
+
+        // ============================================
+        // 🚀 UPDATE: Sort players by goals (Descending)
+        // ============================================
+        List<GameState.PlayerState> sortedPlayers = new ArrayList<>(state.players);
+        sortedPlayers.sort((p1, p2) -> Integer.compare(p2.goals, p1.goals));
+
+        for (GameState.PlayerState p : sortedPlayers) { // Use sorted list
             if (p.goals > 0) {
                 hasScorer = true;
                 if (count >= 3) break;
