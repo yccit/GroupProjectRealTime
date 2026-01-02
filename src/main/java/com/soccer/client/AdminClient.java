@@ -52,7 +52,8 @@ public class AdminClient extends Application {
         playerListContainer.setPadding(new Insets(15));
         ScrollPane scrollPane = new ScrollPane(playerListContainer);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background: #34495e; -fx-border-color: transparent;");
+        // 确保 ScrollPane 内部背景也是深色，但列表项本身会是浅色
+        scrollPane.setStyle("-fx-background: #34495e; -fx-border-color: transparent; -fx-control-inner-background: #34495e;");
         root.setCenter(scrollPane);
 
         // --- 底部：控制按钮 ---
@@ -126,19 +127,25 @@ public class AdminClient extends Application {
 
             HBox row = new HBox(15);
             row.setAlignment(Pos.CENTER_LEFT);
+            // 列表项背景是浅灰色
             row.setStyle("-fx-background-color: #ecf0f1; -fx-background-radius: 5; -fx-padding: 10;");
 
             // 状态指示灯
             String statusEmoji = p.isApproved ? "✅" : "❌";
             Label statusIcon = new Label(statusEmoji);
+            // 确保图标也是黑色的，防止在浅色背景看不清
+            statusIcon.setStyle("-fx-text-fill: black; -fx-font-size: 16px;");
 
             Label infoLabel = new Label(p.name + " (ID: " + p.id + ") [" + p.team + "]");
-            infoLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+
+            // ★★★ 修改重点：强制文字颜色为黑色 (black) ★★★
+            infoLabel.setStyle("-fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px;");
+
             infoLabel.setPrefWidth(250);
 
             Button actionBtn = new Button(p.isApproved ? "Revoke" : "APPROVE");
             if (!p.isApproved) {
-                actionBtn.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white;");
+                actionBtn.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-cursor: hand;");
                 actionBtn.setOnAction(e -> sendCommand("APPROVE", p.id));
             } else {
                 actionBtn.setStyle("-fx-background-color: #7f8c8d; -fx-text-fill: white;");
