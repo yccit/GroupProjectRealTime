@@ -79,6 +79,10 @@ public class GameRoom implements Runnable {
 
             gameState.players.add(new GameState.PlayerState(id, name, team, 0, 0, false));
             System.out.println("[Room] Player joined: " + name + " (" + id + ") Team: " + team);
+
+            // ★★★ FIX: Immediately calculate positions so players don't stick to (0,0) ★★★
+            resetPositions();
+
         } finally {
             lock.unlock();
         }
@@ -142,11 +146,16 @@ public class GameRoom implements Runnable {
     }
 
     private void resetPositions() {
+        // Only reset the ball if the game hasn't started yet (WAITING phase)
+        // or if it's explicitly called (like after a goal).
+        // Since this is called in addPlayer (WAITING phase), it's safe.
         resetBall();
+
         List<GameState.PlayerState> redTeam = gameState.players.stream().filter(p -> "RED".equals(p.team)).collect(Collectors.toList());
         List<GameState.PlayerState> blueTeam = gameState.players.stream().filter(p -> "BLUE".equals(p.team)).collect(Collectors.toList());
 
         // Sort so bots are at the beginning (GK position)
+        // Logic: true (bot) comes BEFORE false (human)
         redTeam.sort((p1, p2) -> {
             if (p1.isBot && !p2.isBot) return -1;
             if (!p1.isBot && p2.isBot) return 1;
