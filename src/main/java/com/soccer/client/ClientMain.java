@@ -27,11 +27,14 @@ public class ClientMain extends Application {
     private ObjectInputStream in;
     private volatile boolean isConnected = false;
 
-    private final int clientId = (int) (Math.random() * 1000000); // 增加 ID 范围防止冲突
+    private final int clientId = (int) (Math.random() * 1000000);
     private GameState currentState;
     private InputPacket currentInput = new InputPacket();
     private String playerName;
     private boolean isGameEnding = false;
+
+    // ★ 修复点 1: 增加一个标记，防止重复加载游戏场景
+    private boolean isGameScreenActive = false;
 
     private ListView<String> lobbyListRed = new ListView<>();
     private ListView<String> lobbyListBlue = new ListView<>();
@@ -48,6 +51,7 @@ public class ClientMain extends Application {
 
     private Background createStadiumBackground() {
         try {
+            // 请确保 /images/bg.jpg 存在，否则会使用后备颜色
             String bgPath = getClass().getResource("/images/bg.jpg").toExternalForm();
             Image bgImage = new Image(bgPath);
             return new Background(new BackgroundImage(bgImage, BackgroundRepeat.NO_REPEAT, BackgroundRepeat.NO_REPEAT, BackgroundPosition.CENTER, new BackgroundSize(1.0, 1.0, true, true, false, false)));
@@ -60,6 +64,8 @@ public class ClientMain extends Application {
         container.setStyle("-fx-background-color: rgba(0, 0, 0, 0.75); -fx-background-radius: 20;");
 
         Label title = new Label("ULTIMATE SOCCER"); title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 32px;");
+
+        // ★ 这里就是输入IP的地方，已经有了
         TextField ipField = new TextField("localhost"); ipField.setPromptText("IP Address");
         TextField nameField = new TextField(); nameField.setPromptText("Name");
         Button joinBtn = new Button("JOIN MATCH"); joinBtn.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -115,6 +121,8 @@ public class ClientMain extends Application {
     }
 
     private void showLobbyScreen() {
+        isGameScreenActive = false; // 重置标记，表示回到了大厅
+
         BorderPane root = new BorderPane(); root.setBackground(createStadiumBackground());
         Label title = new Label("MATCH LOBBY"); title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 28px;");
         HBox topBox = new HBox(title); topBox.setAlignment(Pos.CENTER); topBox.setPadding(new javafx.geometry.Insets(20)); topBox.setStyle("-fx-background-color: rgba(0,0,0,0.6);"); root.setTop(topBox);
@@ -139,6 +147,8 @@ public class ClientMain extends Application {
     }
 
     private void showGameScreen() {
+        isGameScreenActive = true; // 标记已经进入游戏界面
+
         BorderPane root = new BorderPane();
         gamePanel = new GamePanel(clientId);
         gamePanel.onEndGameClicked = () -> { isGameEnding = true; sendCommand("END"); };
@@ -147,7 +157,15 @@ public class ClientMain extends Application {
         gameScene.setOnKeyPressed(e -> KeyHandler.handle(e.getCode(), true, currentInput));
         gameScene.setOnKeyReleased(e -> KeyHandler.handle(e.getCode(), false, currentInput));
         primaryStage.setScene(gameScene);
-        new javafx.animation.AnimationTimer() { @Override public void handle(long now) { gamePanel.render(currentState); } }.start();
+
+        // 只启动一个 AnimationTimer
+        new javafx.animation.AnimationTimer() {
+            @Override public void handle(long now) {
+                if (isGameScreenActive && currentState != null) {
+                    gamePanel.render(currentState);
+                }
+            }
+        }.start();
     }
 
     private void handleServerState(GameState newState) {
@@ -156,10 +174,27 @@ public class ClientMain extends Application {
         if (!isGameEnding && (newState.currentPhase == GameState.Phase.PLAYING || newState.currentPhase == GameState.Phase.COUNTDOWN)) {
             sendPacket(currentInput); currentInput.adminApproveSignal = false; currentInput.shoot = false;
         }
+
         Platform.runLater(() -> {
-            if (newState.currentPhase == GameState.Phase.WAITING) updateLobbyLists(newState);
-            else if ((newState.currentPhase == GameState.Phase.COUNTDOWN || newState.currentPhase == GameState.Phase.PLAYING) && primaryStage.getTitle().startsWith("Soccer Client")) showGameScreen();
-            else if (newState.currentPhase == GameState.Phase.GAME_OVER) isGameEnding = false;
+            // 状态 1: 回到大厅
+            if (newState.currentPhase == GameState.Phase.WAITING) {
+                // 如果当前已经在游戏界面，才切换回大厅
+                if (isGameScreenActive) {
+                    showLobbyScreen();
+                }
+                updateLobbyLists(newState);
+            }
+            // 状态 2: 进入游戏 (COUNTDOWN 或 PLAYING)
+            else if ((newState.currentPhase == GameState.Phase.COUNTDOWN || newState.currentPhase == GameState.Phase.PLAYING)) {
+                // ★ 关键修复: 只有当前 不在 游戏界面时，才切换
+                if (!isGameScreenActive) {
+                    showGameScreen();
+                }
+            }
+            // 状态 3: 游戏结束
+            else if (newState.currentPhase == GameState.Phase.GAME_OVER) {
+                isGameEnding = false;
+            }
         });
     }
 
@@ -179,7 +214,6 @@ public class ClientMain extends Application {
 
     private void sendCommand(String cmd) { InputPacket pkt = new InputPacket(); pkt.command = cmd; pkt.id = clientId; sendPacket(pkt); }
 
-    // ★★★ 必改：确保关闭窗口时彻底杀掉进程，防止内存泄露 ★★★
     @Override
     public void stop() throws Exception {
         super.stop();
