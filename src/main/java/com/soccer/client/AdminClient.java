@@ -17,6 +17,8 @@ import javafx.stage.Stage;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AdminClient extends Application {
 
@@ -24,10 +26,13 @@ public class AdminClient extends Application {
     private ObjectInputStream in;
     private boolean isRunning = true;
 
-    // UI 组件
+    // UI Components
     private VBox playerListContainer;
     private Label statusLabel;
     private Button startMatchBtn;
+
+    // ★★★ NEW: Cache to store the previous list for comparison ★★★
+    private List<GameState.PlayerState> lastPlayerList = new ArrayList<>();
 
     public static void main(String[] args) {
         launch(args);
@@ -39,7 +44,7 @@ public class AdminClient extends Application {
         root.setPadding(new Insets(20));
         root.setStyle("-fx-background-color: #2c3e50;");
 
-        // --- 顶部标题 ---
+        // --- Top Title ---
         Label title = new Label("ADMIN CONTROL PANEL");
         title.setFont(new Font("Arial Black", 24));
         title.setTextFill(Color.WHITE);
@@ -47,16 +52,16 @@ public class AdminClient extends Application {
         topBox.setAlignment(Pos.CENTER);
         root.setTop(topBox);
 
-        // --- 中间：玩家列表 ---
+        // --- Center: Player List ---
         playerListContainer = new VBox(10);
         playerListContainer.setPadding(new Insets(15));
         ScrollPane scrollPane = new ScrollPane(playerListContainer);
         scrollPane.setFitToWidth(true);
-        // 确保 ScrollPane 内部背景也是深色，但列表项本身会是浅色
+        // Ensure ScrollPane background matches dark theme
         scrollPane.setStyle("-fx-background: #34495e; -fx-border-color: transparent; -fx-control-inner-background: #34495e;");
         root.setCenter(scrollPane);
 
-        // --- 底部：控制按钮 ---
+        // --- Bottom: Control Buttons ---
         startMatchBtn = new Button("START MATCH NOW");
         startMatchBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 16px;");
         startMatchBtn.setPrefWidth(200);
@@ -75,12 +80,12 @@ public class AdminClient extends Application {
         bottomBox.setPadding(new Insets(20, 0, 0, 0));
         root.setBottom(bottomBox);
 
-        Scene scene = new Scene(root, 500, 600);
+        Scene scene = new Scene(root, 600, 600); // Slightly larger window
         primaryStage.setTitle("Soccer Game - Administrator");
         primaryStage.setScene(scene);
         primaryStage.show();
 
-        // 连接服务器
+        // Connect to Server
         new Thread(this::connectToServer).start();
     }
 
@@ -91,7 +96,7 @@ public class AdminClient extends Application {
             out.flush();
             in = new ObjectInputStream(socket.getInputStream());
 
-            // 告诉服务器我是 ADMIN
+            // Identify as ADMIN
             InputPacket loginPkt = new InputPacket();
             loginPkt.command = "ADMIN_LOGIN";
             out.writeObject(loginPkt);
@@ -103,12 +108,45 @@ public class AdminClient extends Application {
                 Object obj = in.readObject();
                 if (obj instanceof GameState) {
                     GameState state = (GameState) obj;
-                    Platform.runLater(() -> updateDashboard(state));
+
+                    // ★★★ FIX: Only update UI if player list actually changed (ignoring movement) ★★★
+                    if (shouldUpdateUI(state.players)) {
+                        // Update cache
+                        lastPlayerList.clear();
+                        lastPlayerList.addAll(state.players);
+
+                        // Refresh UI
+                        Platform.runLater(() -> updateDashboard(state));
+                    }
+
+                    // Always update time/phase label (this is cheap and doesn't affect buttons)
+                    Platform.runLater(() -> statusLabel.setText("Game Phase: " + state.currentPhase + " | Time: " + state.timeString));
                 }
             }
         } catch (Exception e) {
             Platform.runLater(() -> statusLabel.setText("Connection Lost"));
         }
+    }
+
+    // ★★★ Helper Logic: Check if we need to redraw the list ★★★
+    private boolean shouldUpdateUI(List<GameState.PlayerState> newPlayers) {
+        // 1. Different number of players? Update.
+        if (newPlayers.size() != lastPlayerList.size()) return true;
+
+        // 2. Check individual player status
+        for (int i = 0; i < newPlayers.size(); i++) {
+            GameState.PlayerState pNew = newPlayers.get(i);
+            GameState.PlayerState pOld = lastPlayerList.get(i);
+
+            // If ID, Name, or Approval Status changed, we must update.
+            // We do NOT check pNew.x or pNew.y here, so movement doesn't cause flickering.
+            if (pNew.id != pOld.id ||
+                    pNew.isApproved != pOld.isApproved ||
+                    !pNew.name.equals(pOld.name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void updateDashboard(GameState state) {
@@ -122,49 +160,47 @@ public class AdminClient extends Application {
         }
 
         for (GameState.PlayerState p : state.players) {
-            // 只显示人类玩家，不显示机器人
+            // Only show humans
             if (p.isBot) continue;
 
             HBox row = new HBox(15);
             row.setAlignment(Pos.CENTER_LEFT);
-            // 列表项背景是浅灰色
             row.setStyle("-fx-background-color: #ecf0f1; -fx-background-radius: 5; -fx-padding: 10;");
 
-            // 状态指示灯
+            // Status Icon
             String statusEmoji = p.isApproved ? "✅" : "❌";
             Label statusIcon = new Label(statusEmoji);
-            // 确保图标也是黑色的，防止在浅色背景看不清
             statusIcon.setStyle("-fx-text-fill: black; -fx-font-size: 16px;");
 
+            // Info Label (Your Requested Black Text)
             Label infoLabel = new Label(p.name + " (ID: " + p.id + ") [" + p.team + "]");
-
-            // ★★★ 修改重点：强制文字颜色为黑色 (black) ★★★
             infoLabel.setStyle("-fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px;");
-
             infoLabel.setPrefWidth(250);
 
+            // Action Button
             Button actionBtn = new Button(p.isApproved ? "Revoke" : "APPROVE");
             if (!p.isApproved) {
                 actionBtn.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-cursor: hand;");
-                actionBtn.setOnAction(e -> sendCommand("APPROVE", p.id));
+                actionBtn.setOnAction(e -> {
+                    sendCommand("APPROVE", p.id);
+                    actionBtn.setDisable(true); // Temporary disable to prevent double clicks
+                });
             } else {
                 actionBtn.setStyle("-fx-background-color: #7f8c8d; -fx-text-fill: white;");
-                actionBtn.setDisable(true); // 批准了就不让撤销了（为了简单）
+                actionBtn.setDisable(true);
             }
 
             row.getChildren().addAll(statusIcon, infoLabel, actionBtn);
             playerListContainer.getChildren().add(row);
         }
-
-        // 更新游戏状态显示
-        statusLabel.setText("Game Phase: " + state.currentPhase + " | Time: " + state.timeString);
     }
 
     private void sendCommand(String cmd, int targetId) {
         try {
             InputPacket pkt = new InputPacket();
             pkt.command = cmd;
-            pkt.targetIdToApprove = targetId; // 告诉服务器批准谁
+            pkt.targetIdToApprove = targetId;
+            pkt.id = 0; // Admin ID
             out.writeObject(pkt);
             out.flush();
         } catch (Exception e) {
