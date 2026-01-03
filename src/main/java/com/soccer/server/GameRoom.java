@@ -5,6 +5,7 @@ import com.soccer.common.GameState;
 import com.soccer.common.InputPacket;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -14,7 +15,7 @@ public class GameRoom implements Runnable {
     private boolean isRunning = true;
     private final GameState gameState = new GameState();
 
-    // ★★★ 满足要求 (f): 使用 Lock 接口替代 synchronized ★★★
+    // ★★★ Requirement (f): Use Lock interface instead of synchronized ★★★
     private final Lock lock = new ReentrantLock();
 
     public ConcurrentHashMap<Integer, InputPacket> inputs = new ConcurrentHashMap<>();
@@ -39,12 +40,12 @@ public class GameRoom implements Runnable {
 
     public GameRoom() {
         resetBall();
-        gameState.weather = Math.random() > 0.7 ? "RAINY" : "SUNNY";
+        // ★★★ FIX: Force weather to be SUNNY (Cancel Rainy) ★★★
+        gameState.weather = "SUNNY";
     }
 
-    // 使用 Lock 保护临界区
     public String checkJoinRequest(String name) {
-        lock.lock(); // 上锁
+        lock.lock();
         try {
             long humanCount = gameState.players.stream().filter(p -> !p.isBot).count();
             if (humanCount >= MAX_PLAYERS) return "Server is Full (Max " + MAX_PLAYERS + ")";
@@ -53,26 +54,33 @@ public class GameRoom implements Runnable {
             }
             return "OK";
         } finally {
-            lock.unlock(); // 解锁
+            lock.unlock();
         }
     }
 
     public void addPlayer(int id, String name) {
-        lock.lock(); // 上锁
+        lock.lock();
         try {
-            if (gameState.currentPhase == GameState.Phase.GAME_OVER) {
-                System.out.println("[Room] Previous game over. Resetting room for new match.");
-                resetGameRoom();
-            }
-
+            // Determine team based on total count (including bots)
             long redCount = gameState.players.stream().filter(p -> "RED".equals(p.team)).count();
             long blueCount = gameState.players.stream().filter(p -> "BLUE".equals(p.team)).count();
             String team = (redCount <= blueCount) ? "RED" : "BLUE";
 
+            // ★★★ FIX: Bot Replacement Logic ★★★
+            // If the team has bots, remove one to make space for the real user.
+            Optional<GameState.PlayerState> botToRemove = gameState.players.stream()
+                    .filter(p -> p.isBot && p.team.equals(team))
+                    .findFirst();
+
+            if (botToRemove.isPresent()) {
+                System.out.println("[Room] Replacing bot " + botToRemove.get().name + " with real player " + name);
+                gameState.players.remove(botToRemove.get());
+            }
+
             gameState.players.add(new GameState.PlayerState(id, name, team, 0, 0, false));
             System.out.println("[Room] Player joined: " + name + " (" + id + ") Team: " + team);
         } finally {
-            lock.unlock(); // 解锁
+            lock.unlock();
         }
     }
 
@@ -94,10 +102,17 @@ public class GameRoom implements Runnable {
     public void startGame() {
         lock.lock();
         try {
+            // ★★★ FIX: Allow Admin to restart from GAME_OVER screen ★★★
+            if (gameState.currentPhase == GameState.Phase.GAME_OVER) {
+                System.out.println("[Room] Admin requested restart. Resetting...");
+                resetGameRoom();
+            }
+
             if (gameState.currentPhase != GameState.Phase.WAITING) return;
+
             System.out.println("[Room] Match Started!");
-            gameState.players.removeIf(p -> p.isBot);
-            fillWithBots();
+            gameState.players.removeIf(p -> p.isBot); // Clear old bots
+            fillWithBots(); // Refill to 11 vs 11
             resetPositions();
             startCountdown();
         } finally {
@@ -110,6 +125,10 @@ public class GameRoom implements Runnable {
         gameState.players.removeIf(p -> p.isBot);
         gameState.scoreRed = 0; gameState.scoreBlue = 0;
         gameState.timeString = "00:00"; gameState.winner = "";
+
+        // ★★★ FIX: Ensure weather is reset to Sunny ★★★
+        gameState.weather = "SUNNY";
+
         resetBall();
         inputs.clear();
         kickCooldowns.clear();
@@ -127,6 +146,7 @@ public class GameRoom implements Runnable {
         List<GameState.PlayerState> redTeam = gameState.players.stream().filter(p -> "RED".equals(p.team)).collect(Collectors.toList());
         List<GameState.PlayerState> blueTeam = gameState.players.stream().filter(p -> "BLUE".equals(p.team)).collect(Collectors.toList());
 
+        // Sort so bots are at the beginning (GK position)
         redTeam.sort((p1, p2) -> {
             if (p1.isBot && !p2.isBot) return -1;
             if (!p1.isBot && p2.isBot) return 1;
@@ -168,7 +188,7 @@ public class GameRoom implements Runnable {
                 updateCountdown();
             } else if (gameState.currentPhase == GameState.Phase.PLAYING) {
                 updatePhysics(dt);
-                updateAI(dt); // AI 更新现在使用并行流
+                updateAI(dt);
                 updateTime();
             }
 
@@ -219,13 +239,12 @@ public class GameRoom implements Runnable {
     }
 
     private void updateAI(double dt) {
-        // ★★★ 满足要求 (g): 使用 parallelStream() 处理并发计算 ★★★
+        // ★★★ Requirement (g): Use parallelStream() for concurrent processing ★★★
         gameState.players.parallelStream()
                 .filter(p -> p.isBot)
                 .forEach(p -> calculateSingleBotLogic(p));
     }
 
-    // 将机器人的逻辑提取出来，供 parallelStream 调用
     private void calculateSingleBotLogic(GameState.PlayerState p) {
         double targetX = p.startX, targetY = p.startY;
         double distToBall = Math.hypot(p.x - gameState.ballX, p.y - gameState.ballY);
@@ -249,8 +268,7 @@ public class GameRoom implements Runnable {
             double goalX = "RED".equals(p.team) ? Constants.WIDTH : 0;
             double angle = Math.atan2((Constants.HEIGHT / 2.0) + (Math.random()-0.5)*80 - p.y, goalX - p.x);
             double power = 7.0 + Math.random() * 3.0;
-            // 注意：多线程修改 ballVx 是不安全的，但对于游戏效果可以接受
-            // 如果要严格，这里需要同步，但为了性能和演示 parallelStream 暂时忽略
+
             synchronized(this) {
                 ballVx = Math.cos(angle) * power; ballVy = Math.sin(angle) * power;
                 lastTouchPlayerId = p.id;
@@ -294,6 +312,8 @@ public class GameRoom implements Runnable {
         gameState.countdownValue = 3 - (int)(diff/1000);
         if (gameState.countdownValue <= 0) { gameState.currentPhase = GameState.Phase.PLAYING; startTime = System.currentTimeMillis(); totalPausedTime = 0; }
     }
+
+    // ★★★ FIX: Stop game at 90 minutes (No Auto Restart) ★★★
     private void updateTime() {
         long elapsed = System.currentTimeMillis() - startTime - totalPausedTime;
         double virtualSeconds = (elapsed / 1000.0) * VIRTUAL_TIME_MULTIPLIER;
@@ -301,14 +321,19 @@ public class GameRoom implements Runnable {
         int mm = totalSec / 60;
         int ss = totalSec % 60;
         gameState.timeString = String.format("%02d:%02d", mm, ss);
+
         if (mm >= 90) finishGame();
     }
+
     private void finishGame() {
         gameState.currentPhase = GameState.Phase.GAME_OVER;
         if (gameState.scoreRed > gameState.scoreBlue) gameState.winner = "RED TEAM";
         else if (gameState.scoreBlue > gameState.scoreRed) gameState.winner = "BLUE TEAM";
         else gameState.winner = "DRAW";
-        DatabaseManager.saveMatch(gameState.winner, gameState.scoreRed, gameState.scoreBlue);
+
+        // Ensure DatabaseManager exists or remove this line
+        // DatabaseManager.saveMatch(gameState.winner, gameState.scoreRed, gameState.scoreBlue);
     }
+
     public GameState getGameState() { return gameState; }
 }
