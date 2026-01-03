@@ -29,7 +29,7 @@ public class GameRoom implements Runnable {
 
     private static final double VIRTUAL_TIME_MULTIPLIER = 10.0;
     private static final double PLAYER_SPEED_BASE = 3.0;
-    private static final int MAX_PLAYERS = 22;
+    private static final int MAX_PLAYERS = 23;
 
     private static final double[][] FORMATION = {
             {450, 0},    // Index 0: GK
