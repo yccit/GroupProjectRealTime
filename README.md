@@ -1,80 +1,120 @@
-# ⚽ Real-Time Multiplayer Soccer Game
+# Real-Time Multiplayer Soccer Game
 
-这是一个基于 Java (Socket + JavaFX) 开发的多人实时足球游戏。支持 11vs11 模拟、管理员控制面板、玩家准入系统以及智能 AI 补位。
+This project is a real-time multiplayer soccer game developed using Java, utilizing Socket programming for networking and JavaFX for the user interface. The system supports an 11 vs 11 simulation, an administrator control panel for match management, a player admission system, and intelligent AI bots that automatically fill vacant positions.
 
-## 🛠️ 环境要求 (Prerequisites)
-* **JDK**: 21 或更高版本
-* **IDE**: IntelliJ IDEA (推荐)
-* **Build Tool**: Maven
+## System Requirements
 
----
-
-## 🚀 启动步骤 (How to Run)
-
-请严格按照以下顺序启动程序，否则会导致连接失败。
-
-### 第一步：启动服务器 (Server)
-这是游戏的大脑，必须第一个启动。
-1.  在项目目录中找到：`src/main/java/com/soccer/server/ServerMain.java`
-2.  右键点击 -> **Run 'ServerMain'**
-3.  **检查控制台**：看到 `>>> STARTING SOCCER SERVER on Port 9999 <<<` 表示启动成功。
-
-### 第二步：启动管理员面板 (Admin Panel)
-用于批准玩家进入和控制比赛开始。
-1.  在项目目录中找到：`src/main/java/com/soccer/client/AdminLauncher.java`
-    * ⚠️ **注意**：请运行 `AdminLauncher`，不要直接运行 `AdminClient`，以避免 JavaFX 错误。
-2.  右键点击 -> **Run 'AdminLauncher'**
-3.  一个黑色的 "ADMIN CONTROL PANEL" 窗口将会弹出。
-
-### 第三步：启动玩家客户端 (Game Client)
-1.  在项目目录中找到：`src/main/java/com/soccer/client/AppLauncher.java`
-    * ⚠️ **注意**：请运行 `AppLauncher`，不要直接运行 `ClientMain`。
-2.  右键点击 -> **Run 'AppLauncher'**
-3.  输入你的名字 (Name)，点击 **JOIN MATCH**。
-4.  此时你会看到黑屏提示 `WAITING FOR ADMIN APPROVAL...`，这是正常的。
-5.  一直rerun可以开很多个acc
-6.  force stop（admin的page） / end game过后 再rerun app launcher会重开新的一局。
+* **JDK**: Version 21 or higher.
+* **IDE**: IntelliJ IDEA is highly recommended for compatibility.
+* **Build Tool**: Maven.
 
 ---
 
-## 🎮 游戏流程 (Gameplay Flow)
+## Network Configuration (Important)
 
-1.  **玩家加入**：
-    * 玩家开启客户端并点击 JOIN 后，会进入等待状态。
-    * 如果是**名字重复**或**服务器满员 (22人)**，系统会弹出错误提示。
+Before running the game on different computers, you must identify the IP address of the computer acting as the Server and ensure that Client computers can communicate with it.
 
-2.  **管理员批准**：
-    * 回到 **Admin Control Panel** 窗口。
-    * 你会看到刚才加入的玩家出现在列表中，状态为 ❌。
-    * 点击玩家旁边的 **[APPROVE]** 按钮。
-    * 玩家的游戏窗口将瞬间解锁，进入比赛大厅/球场。
+### 1. How to Find the Server IP Address
+Perform this step on the computer that will run the `ServerMain` class.
 
-3.  **开始比赛**：
-    * 当所有玩家都准备好后，管理员点击面板底部的 **[START MATCH NOW]**。
-    * 游戏倒计时 3 秒，比赛正式开始！
-    * **操作**：使用 `W` `A` `S` `D` 移动，`SPACE` 射门，`SHIFT` 加速。
+1.  Press the **Windows Key + R** on your keyboard to open the Run dialog.
+2.  Type `cmd` and press **Enter** to open the Command Prompt.
+3.  In the Command Prompt window, type the following command and press Enter:
+    ```cmd
+    ipconfig
+    ```
+4.  Look for the section labeled **Wireless LAN adapter Wi-Fi** (if using Wi-Fi) or **Ethernet adapter** (if using a cable).
+5.  Locate the line that says **IPv4 Address**. It will look something like `192.168.0.105` or `10.x.x.x`.
+6.  This number is your **Server IP Address**. Share this with all players joining the game.
 
-4.  **结束比赛**：
-    * 游戏时间结束后自动结算。
-    * 或者管理员点击 **[FORCE END GAME]** 强制结束。
+### 2. How to Test Connectivity (Ping Command)
+Perform this step on the Client computers to ensure they can reach the Server.
+
+1.  Open the Command Prompt on the Client computer.
+2.  Type the following command, replacing `[Server_IP]` with the address you found in the previous step:
+    ```cmd
+    ping [Server_IP]
+    ```
+    * *Example:* `ping 192.168.0.105`
+3.  **Successful Connection:** If you see messages saying `Reply from 192.168.0.105: bytes=32 time=...`, the connection is good.
+4.  **Failed Connection:** If you see `Request timed out`, the Server's firewall is likely blocking the connection. You may need to temporarily disable the firewall on the Server computer for the Private Network profile.
+
+---
+
+## Execution Instructions
+
+Please execute the following modules in the exact order listed below. Failure to follow this order may result in connection errors.
+
+### Step 1: Start the Server
+The server acts as the central host for the game logic and must be running before any other component.
+
+1.  Navigate to the project directory: `src/main/java/com/soccer/server/ServerMain.java`.
+2.  Right-click on the file and select **Run 'ServerMain'**.
+3.  Check the console output. The system is ready when you see the message: `>>> STARTING SOCCER SERVER on Port 9999 <<<`.
+
+### Step 2: Start the Administrator Panel
+This panel is required to approve players and control the start of the match.
+
+1.  Navigate to the project directory: `src/main/java/com/soccer/client/AdminLauncher.java`.
+    * **Important Note:** You must run `AdminLauncher`. Do not run `AdminClient` directly, as this will cause JavaFX initialization errors.
+2.  Right-click on the file and select **Run 'AdminLauncher'**.
+3.  A black window titled "ADMIN CONTROL PANEL" will appear.
+
+### Step 3: Start the Game Clients (Players)
+1.  Navigate to the project directory: `src/main/java/com/soccer/client/AppLauncher.java`.
+    * **Important Note:** You must run `AppLauncher`. Do not run `ClientMain` directly.
+2.  Right-click on the file and select **Run 'AppLauncher'**.
+3.  Enter your Name in the text field.
+    * If running locally, keep the IP as `localhost`.
+    * If running on a different computer, enter the Server IP found in the "Network Configuration" section.
+4.  Click the **JOIN MATCH** button.
+5.  You will see a black screen displaying `WAITING FOR ADMIN APPROVAL...`. This is the expected behavior until the administrator grants access.
+6.  **Running Multiple Players:** You can run the `AppLauncher` multiple times to create additional players on the same machine.
+7.  **Restarting a Match:** After a game concludes, the administrator can force stop or end the game. Players must re-run the `AppLauncher` to join a new match session.
 
 ---
 
-## 💡 常见问题 (Troubleshooting)
+## Gameplay Flow
 
-### Q: 如何在一台电脑上开多个玩家进行测试？
-**IntelliJ IDEA 默认不仅允许运行一个实例。你需要开启 "Allow Multiple Instances"：**
-1.  在 IDEA 右上角，点击 `AppLauncher` 旁边的下拉菜单 -> **Edit Configurations...**
-2.  在右侧找到 **Modify options** (或者叫 Build and run options)。
-3.  勾选 **Allow multiple instances** (或 Allow parallel run)。
-4.  点击 OK。
-5.  现在你可以多次点击 Run 按钮来开启 Player 1, Player 2, Player 3...
+1.  **Player Registration:**
+    * Once a player launches the client and clicks JOIN, they enter a waiting queue.
+    * If the username is already taken or the server has reached its capacity (22 players), the system will display an error message.
 
-### Q: 为什么报错 "JavaFX runtime components are missing"?
-**原因**：你可能直接运行了 `ClientMain` 或 `AdminClient`。
-**解决**：请务必运行 **`AppLauncher`** 和 **`AdminLauncher`**。这两个类是专门为了绕过 JavaFX 模块检查而设计的。
+2.  **Administrator Approval:**
+    * The administrator must switch to the **Admin Control Panel** window.
+    * The newly joined player will appear in the list with a status indicator (X).
+    * The administrator must click the **[APPROVE]** button next to the player's name.
+    * Upon approval, the player's game window will immediately unlock and display the match lobby or soccer field.
 
-### Q: 为什么我看不到队友/敌人移动？
-**解决**：请检查是否先启动了 **ServerMain**。如果服务器没开，客户端无法同步数据。确保管理员在面板中点击了 **START MATCH**，游戏未开始时玩家无法移动。
+3.  **Starting the Match:**
+    * Once all players have joined and are ready, the administrator clicks the **[START MATCH NOW]** button at the bottom of the panel.
+    * The game will initiate a 3-second countdown, after which the match begins.
+    * **Controls:**
+        * **W, A, S, D**: Move the player.
+        * **SPACE**: Shoot the ball.
+        * **SHIFT**: Sprint (increase speed).
+
+4.  **Ending the Match:**
+    * The game will conclude automatically when the match timer expires.
+    * Alternatively, the administrator can click **[FORCE END GAME]** to stop the session immediately.
 
 ---
+
+## Troubleshooting Guide
+
+### How to run multiple players on a single computer?
+By default, IntelliJ IDEA may restrict you to a single instance of an application. To allow multiple players for testing:
+
+1.  In the top-right corner of IntelliJ IDEA, click the dropdown menu next to the `AppLauncher` run configuration.
+2.  Select **Edit Configurations...**.
+3.  Locate the section labeled **Modify options** (or "Build and run options" in newer versions).
+4.  Check the box for **Allow multiple instances** (sometimes labeled as "Allow parallel run").
+5.  Click **OK** to save the changes.
+6.  You can now click the Run button multiple times to launch Player 1, Player 2, etc.
+
+### Error: "JavaFX runtime components are missing"
+**Cause:** This error occurs if you attempt to run `ClientMain` or `AdminClient` classes directly.
+**Solution:** Always execute the application using the launcher classes: **`AppLauncher`** and **`AdminLauncher`**. These classes are specifically designed to properly initialize the JavaFX environment.
+
+### Players or enemies are not moving/visible
+**Solution:** Ensure that `ServerMain` was started *before* any clients attempted to connect. If the server is not running, clients cannot synchronize data. Additionally, ensure the administrator has clicked **START MATCH**. Players cannot move freely until the match has officially started.
