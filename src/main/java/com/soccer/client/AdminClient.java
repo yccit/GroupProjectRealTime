@@ -31,7 +31,7 @@ public class AdminClient extends Application {
     private Label statusLabel;
     private Button startMatchBtn;
 
-    // ★★★ NEW: Cache to store the previous list for comparison ★★★
+    // Cache to store the previous list for comparison
     private List<GameState.PlayerState> lastPlayerList = new ArrayList<>();
 
     public static void main(String[] args) {
@@ -44,7 +44,7 @@ public class AdminClient extends Application {
         root.setPadding(new Insets(20));
         root.setStyle("-fx-background-color: #2c3e50;");
 
-        // --- Top Title ---
+        // Top Title
         Label title = new Label("ADMIN CONTROL PANEL");
         title.setFont(new Font("Arial Black", 24));
         title.setTextFill(Color.WHITE);
@@ -52,7 +52,7 @@ public class AdminClient extends Application {
         topBox.setAlignment(Pos.CENTER);
         root.setTop(topBox);
 
-        // --- Center: Player List ---
+        // Center: Player List
         playerListContainer = new VBox(10);
         playerListContainer.setPadding(new Insets(15));
         ScrollPane scrollPane = new ScrollPane(playerListContainer);
@@ -61,7 +61,7 @@ public class AdminClient extends Application {
         scrollPane.setStyle("-fx-background: #34495e; -fx-border-color: transparent; -fx-control-inner-background: #34495e;");
         root.setCenter(scrollPane);
 
-        // --- Bottom: Control Buttons ---
+        // Bottom: Control Buttons
         startMatchBtn = new Button("START MATCH NOW");
         startMatchBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 16px;");
         startMatchBtn.setPrefWidth(200);
@@ -109,7 +109,7 @@ public class AdminClient extends Application {
                 if (obj instanceof GameState) {
                     GameState state = (GameState) obj;
 
-                    // ★★★ FIX: Only update UI if player list actually changed (ignoring movement) ★★★
+                    // FIX: Only update UI if player list actually changed (ignoring movement)
                     if (shouldUpdateUI(state.players)) {
                         // Update cache
                         lastPlayerList.clear();
@@ -119,7 +119,7 @@ public class AdminClient extends Application {
                         Platform.runLater(() -> updateDashboard(state));
                     }
 
-                    // Always update time/phase label (this is cheap and doesn't affect buttons)
+                    // Always update time/phase label
                     Platform.runLater(() -> statusLabel.setText("Game Phase: " + state.currentPhase + " | Time: " + state.timeString));
                 }
             }
@@ -128,7 +128,7 @@ public class AdminClient extends Application {
         }
     }
 
-    // ★★★ Helper Logic: Check if we need to redraw the list ★★★
+    //  Check if we need to redraw the list
     private boolean shouldUpdateUI(List<GameState.PlayerState> newPlayers) {
         // 1. Different number of players? Update.
         if (newPlayers.size() != lastPlayerList.size()) return true;
@@ -139,7 +139,6 @@ public class AdminClient extends Application {
             GameState.PlayerState pOld = lastPlayerList.get(i);
 
             // If ID, Name, or Approval Status changed, we must update.
-            // We do NOT check pNew.x or pNew.y here, so movement doesn't cause flickering.
             if (pNew.id != pOld.id ||
                     pNew.isApproved != pOld.isApproved ||
                     !pNew.name.equals(pOld.name)) {

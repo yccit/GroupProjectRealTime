@@ -2,24 +2,16 @@ package com.soccer.common;
 
 public class GameUtils {
 
-    /**
-     * Clamps a value between a minimum and maximum.
-     * Useful for keeping players inside the screen boundaries.
-     * * @param value The value to check
-     * @param min The minimum allowed value
-     * @param max The maximum allowed value
-     * @return The clamped value
-     */
+    // Helper method to keep a value within a specific range.
+    // We mainly use this to stop players from running off the screen map.
     public static int clamp(int value, int min, int max) {
         if (value < min) return min;
         if (value > max) return max;
         return value;
     }
 
-    /**
-     * Checks if two rectangles intersect (Collision Detection).
-     * Simple AABB collision logic.
-     */
+    // Basic collision detection.
+    // Checks if two boxes (rectangles) are overlapping each other.
     public static boolean checkCollision(double x1, double y1, int w1, int h1,
                                          double x2, double y2, int w2, int h2) {
         return x1 < x2 + w2 &&

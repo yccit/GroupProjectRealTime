@@ -27,13 +27,14 @@ public class ClientMain extends Application {
     private ObjectInputStream in;
     private volatile boolean isConnected = false;
 
+    // Generate a random ID so the server knows who sent the packet
     private final int clientId = (int) (Math.random() * 1000000);
     private GameState currentState;
     private InputPacket currentInput = new InputPacket();
     private String playerName;
     private boolean isGameEnding = false;
 
-    // ★ 修复点 1: 增加一个标记，防止重复加载游戏场景
+    // Flag to prevent the game screen from reloading repeatedly
     private boolean isGameScreenActive = false;
 
     private ListView<String> lobbyListRed = new ListView<>();
@@ -49,15 +50,20 @@ public class ClientMain extends Application {
         showLoginScreen();
     }
 
+    // Loads the stadium background image
     private Background createStadiumBackground() {
         try {
-            // 请确保 /images/bg.jpg 存在，否则会使用后备颜色
+            // Make sure bg.jpg is in the resources folder
             String bgPath = getClass().getResource("/images/bg.jpg").toExternalForm();
             Image bgImage = new Image(bgPath);
             return new Background(new BackgroundImage(bgImage, BackgroundRepeat.NO_REPEAT, BackgroundRepeat.NO_REPEAT, BackgroundPosition.CENTER, new BackgroundSize(1.0, 1.0, true, true, false, false)));
-        } catch (Exception e) { return new Background(new BackgroundFill(Color.rgb(44, 62, 80), null, null)); }
+        } catch (Exception e) {
+            // Fallback color if image fails to load
+            return new Background(new BackgroundFill(Color.rgb(44, 62, 80), null, null));
+        }
     }
 
+    // --- SCENE 1: Login Screen ---
     private void showLoginScreen() {
         VBox root = new VBox(25); root.setAlignment(Pos.CENTER); root.setBackground(createStadiumBackground());
         VBox container = new VBox(20); container.setAlignment(Pos.CENTER); container.setMaxWidth(400); container.setPadding(new javafx.geometry.Insets(40));
@@ -65,7 +71,7 @@ public class ClientMain extends Application {
 
         Label title = new Label("ULTIMATE SOCCER"); title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 32px;");
 
-        // ★ 这里就是输入IP的地方，已经有了
+        // Input fields for Server IP and Player Name
         TextField ipField = new TextField("localhost"); ipField.setPromptText("IP Address");
         TextField nameField = new TextField(); nameField.setPromptText("Name");
         Button joinBtn = new Button("JOIN MATCH"); joinBtn.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -75,6 +81,7 @@ public class ClientMain extends Application {
             String ip = ipField.getText().trim(); String name = nameField.getText().trim();
             if (!name.isEmpty() && !ip.isEmpty()) {
                 playerName = name; joinBtn.setDisable(true); joinBtn.setText("CONNECTING..."); statusLabel.setText("");
+                // Run connection in a separate thread so UI doesn't freeze
                 new Thread(() -> connectToServer(ip, name, statusLabel, joinBtn)).start();
             } else statusLabel.setText("Please enter IP and Name!");
         });
@@ -84,29 +91,35 @@ public class ClientMain extends Application {
         primaryStage.setScene(new Scene(root, 800, 600)); primaryStage.show();
     }
 
+    // Handles the network connection logic
     private void connectToServer(String ip, String name, Label statusLabel, Button joinBtn) {
         try {
             socket = new Socket(ip, Constants.PORT);
             out = new ObjectOutputStream(socket.getOutputStream()); out.flush();
             in = new ObjectInputStream(socket.getInputStream()); isConnected = true;
 
+            // Send initial JOIN request
             InputPacket joinPacket = new InputPacket(); joinPacket.command = "JOIN"; joinPacket.id = clientId; joinPacket.playerName = name;
             sendPacket(joinPacket);
 
+            // Wait for server response (OK or FAIL)
             try {
                 Object response = in.readObject();
                 if (response instanceof String) {
                     String msg = (String) response;
                     if (msg.startsWith("FAIL:")) {
                         String reason = msg.substring(5);
+                        // If rejected, show error and re-enable button
                         Platform.runLater(() -> { statusLabel.setText(reason); joinBtn.setDisable(false); joinBtn.setText("JOIN MATCH"); });
                         socket.close(); return;
                     }
                 }
             } catch (Exception e) { return; }
 
+            // If success, go to Lobby
             Platform.runLater(this::showLobbyScreen);
 
+            // Start listening loop
             while (isConnected) {
                 Object obj = in.readObject();
                 if (obj instanceof GameState) {
@@ -120,8 +133,9 @@ public class ClientMain extends Application {
         }
     }
 
+    // --- SCENE 2: Lobby Screen ---
     private void showLobbyScreen() {
-        isGameScreenActive = false; // 重置标记，表示回到了大厅
+        isGameScreenActive = false; // Reset flag since we are back in lobby
 
         BorderPane root = new BorderPane(); root.setBackground(createStadiumBackground());
         Label title = new Label("MATCH LOBBY"); title.setStyle("-fx-text-fill: white; -fx-font-family: 'Arial Black'; -fx-font-size: 28px;");
@@ -141,24 +155,31 @@ public class ClientMain extends Application {
 
         primaryStage.setScene(new Scene(root, 800, 600));
 
+        // Immediately populate list if data exists
         if (currentState != null) {
             updateLobbyLists(currentState);
         }
     }
 
+    // --- SCENE 3: Game Screen ---
     private void showGameScreen() {
-        isGameScreenActive = true; // 标记已经进入游戏界面
+        isGameScreenActive = true; // Mark game screen as active
 
         BorderPane root = new BorderPane();
         gamePanel = new GamePanel(clientId);
+
+        // Setup the "End Game" button click handler
         gamePanel.onEndGameClicked = () -> { isGameEnding = true; sendCommand("END"); };
+
         root.setCenter(gamePanel);
         Scene gameScene = new Scene(root);
+
+        // Hook up keyboard controls
         gameScene.setOnKeyPressed(e -> KeyHandler.handle(e.getCode(), true, currentInput));
         gameScene.setOnKeyReleased(e -> KeyHandler.handle(e.getCode(), false, currentInput));
         primaryStage.setScene(gameScene);
 
-        // 只启动一个 AnimationTimer
+        // Start the game loop (rendering)
         new javafx.animation.AnimationTimer() {
             @Override public void handle(long now) {
                 if (isGameScreenActive && currentState != null) {
@@ -168,30 +189,35 @@ public class ClientMain extends Application {
         }.start();
     }
 
+    // Main logic to route server updates to correct screen
     private void handleServerState(GameState newState) {
         this.currentState = newState;
         currentInput.id = clientId;
+
+        // Only send inputs if game is actually running
         if (!isGameEnding && (newState.currentPhase == GameState.Phase.PLAYING || newState.currentPhase == GameState.Phase.COUNTDOWN)) {
-            sendPacket(currentInput); currentInput.adminApproveSignal = false; currentInput.shoot = false;
+            sendPacket(currentInput);
+            // Reset one-time triggers
+            currentInput.adminApproveSignal = false;
+            currentInput.shoot = false;
         }
 
         Platform.runLater(() -> {
-            // 状态 1: 回到大厅
+            // Case 1: Back to Lobby (Waiting Phase)
             if (newState.currentPhase == GameState.Phase.WAITING) {
-                // 如果当前已经在游戏界面，才切换回大厅
                 if (isGameScreenActive) {
-                    showLobbyScreen();
+                    showLobbyScreen(); // Switch scene back to lobby
                 }
                 updateLobbyLists(newState);
             }
-            // 状态 2: 进入游戏 (COUNTDOWN 或 PLAYING)
+            // Case 2: Game Started
             else if ((newState.currentPhase == GameState.Phase.COUNTDOWN || newState.currentPhase == GameState.Phase.PLAYING)) {
-                // ★ 关键修复: 只有当前 不在 游戏界面时，才切换
+                // Only switch scene if we aren't already there
                 if (!isGameScreenActive) {
                     showGameScreen();
                 }
             }
-            // 状态 3: 游戏结束
+            // Case 3: Game Over
             else if (newState.currentPhase == GameState.Phase.GAME_OVER) {
                 isGameEnding = false;
             }
